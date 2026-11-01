@@ -337,7 +337,7 @@
     "debit": 150.0,
     "credit": 0.0,
     "balance": 60429178.15,
-    "category": "bank_charges",
+    "category": "expense",
     "lp_code": null,
     "company": null,
     "classification_override_reason": null,
@@ -534,7 +534,7 @@
     "balance": 23886903.15,
     "category": "investment_purchase",
     "lp_code": null,
-    "company": "IONMERE MATERIALS LTD",
+    "company": "Ionmere Materials Ltd",
     "classification_override_reason": null,
     "source_page": 2,
     "source_row": 15

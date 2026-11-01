@@ -13,7 +13,7 @@ import pdfplumber
 
 from app.models import Transaction
 
-DATE_PATTERN = re.compile(r"^(\d{2})\s+(Oct|Nov|Dec)\s+(2022)$")
+DATE_PATTERN = re.compile(r"^(\d{2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})$")
 AMOUNT_PATTERN = re.compile(r"^\d{1,3}(?:,\d{3})*\.\d{2}$")
 
 

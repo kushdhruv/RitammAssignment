@@ -11,7 +11,7 @@ from app.orchestrator import run_close
 class EndToEndTests(unittest.TestCase):
     def test_runs_a_complete_local_close_and_writes_required_outputs(self) -> None:
         root = Path(__file__).parents[1]
-        pack_dir = root.parent / "pack"
+        pack_dir = (root / "pack") if (root / "pack").is_dir() else (root.parent / "pack")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
             result = run_close(pack_dir, output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
@@ -31,7 +31,7 @@ class EndToEndTests(unittest.TestCase):
 
     def test_creates_a_missing_output_parent(self) -> None:
         root = Path(__file__).parents[1]
-        pack_dir = root.parent / "pack"
+        pack_dir = (root / "pack") if (root / "pack").is_dir() else (root.parent / "pack")
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "missing-parent" / "output"
             run_close(pack_dir, output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
@@ -39,7 +39,7 @@ class EndToEndTests(unittest.TestCase):
 
     def test_rejects_missing_live_llm_configuration_before_starting_http_servers(self) -> None:
         root = Path(__file__).parents[1]
-        pack_dir = root.parent / "pack"
+        pack_dir = (root / "pack") if (root / "pack").is_dir() else (root.parent / "pack")
         with tempfile.TemporaryDirectory() as temporary, patch.dict(
             os.environ,
             {"LLM_API_KEY": "", "LLM_BASE_URL": "", "LLM_MODEL": ""},

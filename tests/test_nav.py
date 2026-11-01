@@ -10,7 +10,7 @@ from app.valuation import calculate_close, load_q3_data
 
 class NavTests(unittest.TestCase):
     def test_calculates_the_supplied_q4_close_and_balancing_bridge(self) -> None:
-        root = Path(__file__).parents[2] / "pack"
+        root = Path(__file__).parents[1] / "pack" if (Path(__file__).parents[1] / "pack").is_dir() else Path(__file__).parents[2] / "pack"
         opening_cash, extracted = parse_bank_statement(root / "GPF_Bank_Statement_Q4_2022.pdf")
         transactions = classify_transactions(extracted, DeterministicClassifier())
         q3 = load_q3_data(root / "GPF_NAV_Summary_Q3_2022.xlsx", root / "CVP_Valuation_Report_Q3_2022.xlsx")

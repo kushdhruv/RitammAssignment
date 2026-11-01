@@ -98,6 +98,7 @@ def calculate_close(
     marks: Sequence[dict[str, Any] | Mark],
     eurusd_rate: Decimal | str,
     threshold_pct: Decimal | str,
+    valuation_date: date | None = None,
 ) -> CloseResult:
     fx = Decimal(str(eurusd_rate))
     threshold = Decimal(str(threshold_pct))
@@ -112,11 +113,16 @@ def calculate_close(
         q4_marks = [mark if isinstance(mark, Mark) else Mark.model_validate(mark) for mark in marks]
     except (TypeError, ValidationError, ValueError) as error:
         raise ValueError("Q4_MARK_INVALID") from error
+    mark_dates = {mark.valuation_date for mark in q4_marks}
+    if valuation_date is None:
+        if len(mark_dates) != 1:
+            raise ValueError("VALUATION_DATE_REQUIRED")
+        valuation_date = next(iter(mark_dates))
     mark_by_company: dict[str, Mark] = {}
     for mark in q4_marks:
         if mark.company in mark_by_company:
             raise ValueError(f"Q4_MARK_DUPLICATE: {mark.company}")
-        if mark.currency not in {"USD", "EUR"} or mark.valuation_date != date(2022, 12, 31):
+        if mark.currency not in {"USD", "EUR"} or mark.valuation_date != valuation_date:
             raise ValueError(f"Q4_MARK_INVALID: {mark.company}")
         mark_by_company[mark.company] = mark
     closing_cash = transactions[-1].balance

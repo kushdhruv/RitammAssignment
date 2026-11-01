@@ -7,7 +7,8 @@ from app.a2a import ValuationA2AHandler
 
 class A2ATests(unittest.TestCase):
     def setUp(self) -> None:
-        self.handler = ValuationA2AHandler(Path(__file__).parents[2] / "pack" / "agent_b_data.json")
+        pack_dir = Path(__file__).parents[1] / "pack" if (Path(__file__).parents[1] / "pack").is_dir() else Path(__file__).parents[2] / "pack"
+        self.handler = ValuationA2AHandler(pack_dir / "agent_b_data.json")
 
     def test_marks_are_withheld_until_activity_matches(self) -> None:
         first = self.handler.handle({"message": {"kind": "message", "role": "user", "messageId": "m1", "parts": [

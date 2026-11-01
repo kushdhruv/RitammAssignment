@@ -64,7 +64,7 @@ class LlmTransportTests(unittest.TestCase):
                 "Coral & Finch LLP": "Audit fee accrual",
                 "Harbourside Fund Services": "Administration fee payable Q3",
             },
-            prior_period_end_year=2022,
+            prior_period_end_date=date(2022, 9, 30),
         )
 
     def test_identifies_the_client_to_provider_and_supplies_grounding_context(self) -> None:
@@ -84,8 +84,7 @@ class LlmTransportTests(unittest.TestCase):
         self.assertEqual(captured[0].get_header("Authorization"), "Bearer test-key")
         prompt = json.loads(captured[0].data.decode("utf-8"))["messages"][1]["content"]
         self.assertIn("R. Mehta Family Trust -> LP10", prompt)
-        self.assertIn("Coral & Finch LLP", prompt)
-        self.assertIn("Harbourside Fund Services", prompt)
+        self.assertIn("No matching prior-period liability", prompt)
 
     def test_splits_large_ledgers_into_bounded_requests(self) -> None:
         captured_batches: list[list[dict]] = []
@@ -103,6 +102,69 @@ class LlmTransportTests(unittest.TestCase):
 
         self.assertEqual(len(responses), 39)
         self.assertEqual([len(batch) for batch in captured_batches], [8, 8, 8, 8, 7])
+
+    def test_scopes_reference_context_to_the_records_in_each_batch(self) -> None:
+        context = ClassificationContext(
+            lp_directory={"R. Mehta Family Trust": "LP10", "Unrelated Investor": "LP99"},
+            known_companies=("Fjord Payments AS", "Unrelated Company Ltd"),
+            prior_period_liability_payees=("Coral & Finch LLP", "Unrelated Vendor LLC"),
+        )
+        captured = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured.append(request)
+            return _model_response([{"transaction_id": "txn-0001", "category": "capital_call", "lp_code": "LP10", "company": None}])
+
+        classifier = OpenAICompatibleClassifier("test-key", "https://example.invalid/v1", "test-model", context=context)
+        with patch("app.classifier.urlopen", side_effect=fake_urlopen):
+            classifier.classify([_row("txn-0001")])
+
+        prompt = json.loads(captured[0].data.decode("utf-8"))["messages"][1]["content"]
+        self.assertIn("R. Mehta Family Trust -> LP10", prompt)
+        self.assertNotIn("Unrelated Investor", prompt)
+        self.assertNotIn("Unrelated Company Ltd", prompt)
+        self.assertNotIn("Unrelated Vendor LLC", prompt)
+
+    def test_packs_by_serialized_request_reservation_not_only_row_count(self) -> None:
+        captured = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured.append(request)
+            payload = json.loads(request.data.decode("utf-8"))
+            ledger = json.loads(payload["messages"][1]["content"].rsplit("\nTransactions:\n", 1)[1])
+            return _model_response([{"transaction_id": item["transaction_id"], "category": "capital_call", "lp_code": "LP10", "company": None} for item in ledger])
+
+        rows = [_row(f"txn-{index:04d}", description="WIRE IN R MEHTA FAM TRST CALL NO 7 " + "X" * 1200) for index in range(3)]
+        classifier = OpenAICompatibleClassifier(
+            "test-key", "https://example.invalid/v1", "test-model",
+            context=self.context, batch_token_budget=4_000,
+        )
+        with patch("app.classifier.urlopen", side_effect=fake_urlopen):
+            self.assertEqual(len(classifier.classify(rows)), 3)
+
+        self.assertGreater(len(captured), 1)
+        for request in captured:
+            payload = json.loads(request.data.decode("utf-8"))
+            reservation = len(request.data) + payload["max_completion_tokens"]
+            self.assertLessEqual(reservation, 4_000)
+
+    def test_uses_strict_json_schema_for_the_configured_groq_model(self) -> None:
+        captured = []
+
+        def fake_urlopen(request, **_kwargs):
+            captured.append(request)
+            return _model_response([{"transaction_id": "txn-0001", "category": "capital_call", "lp_code": "LP10", "company": None}])
+
+        classifier = OpenAICompatibleClassifier(
+            "test-key", "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", context=self.context,
+        )
+        with patch("app.classifier.urlopen", side_effect=fake_urlopen):
+            classifier.classify([_row("txn-0001")])
+
+        response_format = json.loads(captured[0].data.decode("utf-8"))["response_format"]
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertTrue(response_format["json_schema"]["strict"])
+        self.assertFalse(response_format["json_schema"]["schema"]["additionalProperties"])
 
     def test_retries_an_incomplete_batch_before_returning_any_result(self) -> None:
         attempts = 0
@@ -137,7 +199,7 @@ class LlmFinancialValidationTests(unittest.TestCase):
                 "Coral & Finch LLP": "Audit fee accrual",
                 "Harbourside Fund Services": "Administration fee payable Q3",
             },
-            prior_period_end_year=2022,
+            prior_period_end_date=date(2022, 9, 30),
         )
 
     def test_rejects_an_unknown_lp_code_instead_of_accepting_a_plausible_hallucination(self) -> None:
@@ -186,7 +248,7 @@ class LlmFinancialValidationTests(unittest.TestCase):
             prior_period_liability_payees=("Coral & Finch LLP",),
             prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
             prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
-            prior_period_end_year=2022,
+            prior_period_end_date=date(2022, 9, 30),
         )
         row = _row(
             "txn-0001",
@@ -209,7 +271,7 @@ class LlmFinancialValidationTests(unittest.TestCase):
             prior_period_liability_payees=("Coral & Finch LLP",),
             prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
             prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
-            prior_period_end_year=2022,
+            prior_period_end_date=date(2022, 9, 30),
         )
         row = _row(
             "txn-0001",
@@ -247,7 +309,7 @@ class LlmFinancialValidationTests(unittest.TestCase):
             prior_period_liability_payees=("Coral & Finch LLP",),
             prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
             prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
-            prior_period_end_year=2022,
+            prior_period_end_date=date(2022, 9, 30),
         )
         rows = [
             _row("txn-0001", description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT FY21 PARTIAL SETTLEMENT", debit="70000", credit="0"),
@@ -258,7 +320,7 @@ class LlmFinancialValidationTests(unittest.TestCase):
             def classify(self, source_rows):
                 return [{"transaction_id": row.transaction_id, "category": "accrual_settlement", "lp_code": None, "company": None} for row in source_rows]
 
-        with self.assertRaisesRegex(ValueError, "ACCRUAL_SETTLEMENT_EXCEEDS_Q3_LIABILITY"):
+        with self.assertRaisesRegex(ValueError, "ACCRUAL_SETTLEMENT_EXCEEDS_PRIOR_PERIOD_LIABILITY"):
             classify_transactions(rows, OverpayingSettlementClassifier(), context)
 
     def test_corrects_a_purchase_sale_pair_that_violates_cash_direction(self) -> None:
@@ -279,8 +341,28 @@ class LlmFinancialValidationTests(unittest.TestCase):
 
 
 class ClassificationContextTests(unittest.TestCase):
+    def test_prior_period_evidence_uses_the_workbook_quarter_not_a_fixed_q3_rule(self) -> None:
+        context = ClassificationContext(
+            lp_directory={},
+            known_companies=(),
+            prior_period_liability_payees=("Coral & Finch LLP",),
+            prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
+            prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
+            prior_period_end_date=date(2023, 3, 31),
+        )
+        q1 = _row("txn-0001", description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT Q1 SETTLEMENT", debit="1", credit="0")
+        q2 = _row("txn-0002", description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT Q2 INVOICE", debit="1", credit="0")
+
+        class ExpenseClassifier:
+            def classify(self, rows):
+                return [{"transaction_id": row.transaction_id, "category": "expense", "lp_code": None, "company": None} for row in rows]
+
+        classified = classify_transactions([q1, q2], ExpenseClassifier(), context)
+        self.assertEqual(classified[0].category.value, "accrual_settlement")
+        self.assertEqual(classified[1].category.value, "expense")
+
     def test_loads_assignment_reference_data_and_validates_every_sample_identity(self) -> None:
-        pack = Path(__file__).parents[2] / "pack"
+        pack = Path(__file__).parents[1] / "pack" if (Path(__file__).parents[1] / "pack").is_dir() else Path(__file__).parents[2] / "pack"
         context = load_classification_context(
             pack / "GPF_NAV_Summary_Q3_2022.xlsx",
             pack / "CVP_Valuation_Report_Q3_2022.xlsx",
