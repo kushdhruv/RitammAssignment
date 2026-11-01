@@ -12,6 +12,8 @@ python main.py
 
 The assignment pack is intentionally kept outside this project at `C:\Ritamm\pack`. To provide another pack, run `python main.py <pack-directory>`. The submission ZIP contains a sibling `pack/` folder, so the same command also works after extraction.
 
+The workflow engine automatically checkpoints each stage (bank extraction, LLM classification batches, A2A marks exchange, and NAV calculation) into an embedded SQLite WAL database (`.workflow_state/`). If an LLM call times out or execution is interrupted, restarting `python main.py` automatically resumes from the exact failed step without re-running completed work or re-consuming API tokens. To force a clean run from scratch, pass the `--clean` or `--force` flag: `python main.py --clean`.
+
 The evaluator's `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` take precedence over `.env`. `AGENT_A_PORT` and `AGENT_B_PORT` default to 8001 and 8002. The command validates the pack and LLM configuration before starting either local service, creates `output/` only after a complete close, and stops both services when the run ends.
 
 `DEMO_CLASSIFIER=1` enables a deterministic local adapter solely to make offline tests and the included sample output reproducible. It is not the normal or evaluator mode; without that setting, every extracted transaction is sent to the configured OpenAI-compatible LLM for classification.

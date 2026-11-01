@@ -1,19 +1,19 @@
 {
-  "closing_cash": 23896579.25,
-  "investments_usd": 146062460.0,
-  "liabilities": 195000.0,
-  "management_fee": 1250000.0,
-  "nav_q4": 169764039.25,
   "bridge": {
-    "nav_q3": 160224800.0,
-    "capital_called": 20000000.0,
-    "distributions": 22500000.0,
-    "income": 459429.25,
-    "management_fee": 1250000.0,
-    "expenses": 1522850.0,
-    "realized_gain": 9000000.0,
-    "change_in_unrealized": 4102660.0,
-    "nav_q4": 169764039.25,
-    "difference": 0.0
-  }
+    "capital_called": "20000000.00",
+    "change_in_unrealized": "4102660.00",
+    "difference": "0.00",
+    "distributions": "22500000.00",
+    "expenses": "1522850.00",
+    "income": "459429.25",
+    "management_fee": "1250000.00",
+    "nav_q3": "160224800.00",
+    "nav_q4": "169764039.25",
+    "realized_gain": "9000000.00"
+  },
+  "closing_cash": "23896579.25",
+  "investments_usd": "146062460.00",
+  "liabilities": "195000.00",
+  "management_fee": "1250000.00",
+  "nav_q4": "169764039.25"
 }

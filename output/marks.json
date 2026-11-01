@@ -1,55 +1,54 @@
 {
   "fund": "The Greatness PE Fund, L.P.",
-  "valuation_date": "2022-12-31",
   "marks": [
     {
       "company": "Aurora Logistics Pvt Ltd",
       "currency": "USD",
       "fair_value": "25700000",
-      "valuation_method": "Market multiples",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Market multiples"
     },
     {
       "company": "Bluetarn Software Inc",
       "currency": "USD",
       "fair_value": "42900000",
-      "valuation_method": "Discounted cash flow",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Discounted cash flow"
     },
     {
       "company": "Cedar Health Holdings",
       "currency": "USD",
       "fair_value": "9600000",
-      "valuation_method": "Market multiples",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Market multiples"
     },
     {
       "company": "Delta Agritech Ltd",
       "currency": "USD",
       "fair_value": "12150000",
-      "valuation_method": "Market multiples",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Market multiples"
     },
     {
       "company": "Ember Retail GmbH",
       "currency": "EUR",
       "fair_value": "13100000",
-      "valuation_method": "Market multiples",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Market multiples"
     },
     {
       "company": "Granite Energy Corp",
       "currency": "USD",
       "fair_value": "16900000",
-      "valuation_method": "Market multiples",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Market multiples"
     },
     {
       "company": "Harbor Analytics Inc",
       "currency": "USD",
       "fair_value": "10840000",
-      "valuation_method": "Recent transaction",
-      "valuation_date": "2022-12-31"
+      "valuation_date": "2022-12-31",
+      "valuation_method": "Recent transaction"
     }
   ],
   "notes": [
@@ -61,5 +60,6 @@
       "company": "Fjord Payments AS",
       "note": "Sold by the fund on 18 Nov 2022. Removed from coverage."
     }
-  ]
+  ],
+  "valuation_date": "2022-12-31"
 }

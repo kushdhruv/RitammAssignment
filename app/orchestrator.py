@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
+import hashlib
 from pathlib import Path
 import shutil
 import tempfile
@@ -13,9 +15,12 @@ from app.a2a import A2AClient, ValuationA2AHandler, agent_card, timestamped_log
 from app.bank_parser import parse_bank_statement
 from app.classifier import DeterministicClassifier, OpenAICompatibleClassifier, classify_transactions
 from app.http_server import LocalAgentServer
+from app.models import Transaction
 from app.output_writer import publish_directory, write_json, write_jsonl
 from app.reconciliation import reconcile_bank_statement
 from app.run_manifest import input_manifest
+from app.valuation import CloseResult
+from app.workflow import WorkflowEngine, canonical_json
 
 
 def run_close(
@@ -25,6 +30,9 @@ def run_close(
     classifier_mode: str = "llm",
     agent_a_port: int = 8001,
     agent_b_port: int = 8002,
+    clean: bool = False,
+    workflow_db_path: Path | None = None,
+    workflow_id: str | None = None,
 ) -> dict[str, str]:
     _verify_pack(pack_dir)
     if classifier_mode not in {"llm", "deterministic"}:
@@ -34,36 +42,89 @@ def run_close(
     a2a_log: list[dict[str, Any]] = []
     trace_id = uuid4().hex
 
-    def trace(event: str, **attributes: Any) -> None:
-        traces.append({"timestamp": datetime.now(timezone.utc).isoformat(), "trace_id": trace_id, "event": event, **attributes})
-
     valuation_handler = ValuationA2AHandler(
         pack_dir / "agent_b_data.json",
         pack_dir / "GPF_NAV_Summary_Q3_2022.xlsx",
         pack_dir / "CVP_Valuation_Report_Q3_2022.xlsx",
     )
-    # Validate all static dependencies before exposing either endpoint. This
-    # prevents a missing LLM configuration from becoming a generic server 500.
+    # Validate all static dependencies before exposing either endpoint or allocating resources. This
+    # prevents a missing LLM configuration from becoming a generic server 500 or leaking open files.
     classification_context = valuation_handler.classification_context()
     classifier = (
         DeterministicClassifier()
         if classifier_mode == "deterministic"
         else OpenAICompatibleClassifier.from_environment(classification_context)
     )
+
+    manifest_hash = hashlib.sha256(canonical_json(manifest).encode("utf-8")).hexdigest()[:16]
+    state_dir = output_dir.parent / ".workflow_state"
+    db_file = workflow_db_path or (state_dir / f"gpf_{manifest_hash}.db")
+    wid = workflow_id or f"gpf_{manifest_hash}"
+    engine = WorkflowEngine(db_file, workflow_id=wid, clean=clean)
+
+    def trace(event: str, **attributes: Any) -> None:
+        traces.append({"timestamp": datetime.now(timezone.utc).isoformat(), "trace_id": trace_id, "event": event, **attributes})
+
     b_server = LocalAgentServer("127.0.0.1", agent_b_port, agent_card("Valuation & NAV Agent", "Validates investment activity and releases Q4 marks.", "placeholder"), valuation_handler.handle)
     b_server.card["url"] = f"http://127.0.0.1:{b_server.port}/a2a"
     def execute_agent_a() -> dict[str, str]:
-        opening_cash, extracted = parse_bank_statement(pack_dir / "GPF_Bank_Statement_Q4_2022.pdf")
+        # Activity 1: Parse and reconcile bank statement
+        def _parse_and_reconcile() -> dict[str, Any]:
+            opening, extracted_txns = parse_bank_statement(pack_dir / "GPF_Bank_Statement_Q4_2022.pdf")
+            reconciliation = reconcile_bank_statement(opening, extracted_txns)
+            return {
+                "opening_cash": str(opening),
+                "closing_cash": str(reconciliation.closing_cash),
+                "extracted": [t.model_dump(mode="json") for t in extracted_txns],
+            }
+
+        bank_data = engine.run_activity("parse_and_reconcile_bank", _parse_and_reconcile)
+        extracted = [Transaction.model_validate(row) for row in bank_data["extracted"]]
         trace("bank_statement_extracted", transaction_count=len(extracted))
-        bank = reconcile_bank_statement(opening_cash, extracted)
-        trace("bank_statement_reconciled", closing_cash=str(bank.closing_cash))
-        transactions = classify_transactions(extracted, classifier, classification_context)
+        trace("bank_statement_reconciled", closing_cash=bank_data["closing_cash"])
+
+        # Activity 2: Classify transactions with batch-level durable checkpoints
+        def _classify() -> list[dict[str, Any]]:
+            classified_txns = classify_transactions(
+                extracted, classifier, classification_context, workflow_engine=engine
+            )
+            return [t.model_dump(mode="json") for t in classified_txns]
+
+        classified_data = engine.run_activity("classify_transactions", _classify)
+        transactions = [Transaction.model_validate(row) for row in classified_data]
         trace("transactions_classified", mode=classifier_mode)
-        client = A2AClient(b_server.card["url"], lambda direction, payload: a2a_log.append(timestamped_log(direction, payload)))
-        marks_artifact = _request_marks(client, transactions)
+
+        # Activity 3: A2A Marks Handshake
+        def _exchange_marks() -> dict[str, Any]:
+            captured_logs: list[dict[str, Any]] = []
+            client = A2AClient(b_server.card["url"], lambda direction, payload: captured_logs.append(timestamped_log(direction, payload)))
+            marks = _request_marks(client, transactions)
+            return {"marks": marks, "logs": captured_logs}
+
+        a2a_result = engine.run_activity("a2a_marks_exchange", _exchange_marks)
+        marks_artifact = a2a_result["marks"]
+        for entry in a2a_result.get("logs", []):
+            a2a_log.append(entry)
         trace("marks_released")
-        close = valuation_handler.calculate_close(transactions, marks_artifact)
+
+        # Activity 4: Calculate Close & NAV Bridge
+        def _calculate_close() -> dict[str, Any]:
+            close_result = valuation_handler.calculate_close(transactions, marks_artifact)
+            return {
+                "holdings": close_result.holdings,
+                "review": close_result.review,
+                "nav": close_result.nav,
+            }
+
+        close_dict = engine.run_activity("calculate_close", _calculate_close)
+        close = CloseResult(
+            holdings=close_dict["holdings"],
+            review=close_dict["review"],
+            nav=close_dict["nav"],
+        )
         trace("nav_calculated", nav_q4=str(close.nav["nav_q4"]))
+
+        # Activity 5: Atomic output publication
         trace("outputs_written")
         output_dir.parent.mkdir(parents=True, exist_ok=True)
         staging_directory = Path(tempfile.mkdtemp(prefix=".close-output-", dir=output_dir.parent))
@@ -74,7 +135,9 @@ def run_close(
         except Exception:
             shutil.rmtree(staging_directory, ignore_errors=True)
             raise
-        return {"nav_q4": f"{close.nav['nav_q4']:.2f}"}
+        nav_q4_val = Decimal(str(close.nav["nav_q4"]))
+        return {"nav_q4": f"{nav_q4_val:.2f}"}
+
 
     a_server = LocalAgentServer("127.0.0.1", agent_a_port, agent_card("Bank & Ingestion Agent", "Classifies and reconciles fund bank transactions.", "placeholder"), _agent_a_handler(execute_agent_a))
     a_server.card["url"] = f"http://127.0.0.1:{a_server.port}/a2a"
@@ -92,6 +155,10 @@ def run_close(
     finally:
         a_server.stop()
         b_server.stop()
+        engine.close()
+
+
+
 
 
 def _request_marks(client: A2AClient, transactions: list) -> dict[str, Any]:

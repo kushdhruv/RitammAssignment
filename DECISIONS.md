@@ -23,3 +23,12 @@
 **Alternatives:** Apply a materiality tolerance or automatically post a balancing adjustment.
 
 **Why:** The brief requires cent-level reconciliation. Silent adjustments make an accounting error harder to locate and audit.
+
+## Decision 4: Embedded durable workflow state machine
+
+**Decision:** Implement workflow orchestration as an embedded, ACID-compliant activity state machine backed by SQLite in WAL mode (`app/workflow.py`) with per-batch checkpointing and automatic resumption.
+
+**Alternatives:** Distributed orchestrators such as Temporal or Celery + Redis / RabbitMQ.
+
+**Why:** Temporal and Celery introduce heavy external daemon processes (Docker clusters, Redis brokers, open ports) that break zero-dependency local CLI execution (`python main.py ./pack`). The embedded WAL engine provides the exact same architectural resilience guarantees (idempotent activities, per-batch LLM checkpointing, failure retry, and instant resumption after crashes) with zero external infrastructure.
+

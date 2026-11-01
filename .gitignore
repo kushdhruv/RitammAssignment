@@ -1,3 +1,7 @@
+.workflow_state/
+*.db
+*.db-wal
+*.db-shm
 .env
 __pycache__/
 *.py[cod]
@@ -9,3 +13,4 @@ pack.zip
 Ritamm_TakeHome_Brief.pdf
 pack/Ritamm_TakeHome_Brief.pdf
 *_submission.zip
+

@@ -29,10 +29,20 @@ def main() -> int:
         default_pack_dir = project_root / "pack"
         if not default_pack_dir.is_dir():
             default_pack_dir = project_root.parent / "pack"
-        pack_dir = Path(sys.argv[1] if len(sys.argv) > 1 else os.getenv("PACK_DIR", str(default_pack_dir))).resolve()
+        positional_args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+        flags = {arg.lower() for arg in sys.argv[1:] if arg.startswith("--")}
+        clean = "--clean" in flags or "--force" in flags or os.getenv("CLEAN_WORKFLOW") == "1"
+
+        pack_dir = Path(positional_args[0] if positional_args else os.getenv("PACK_DIR", str(default_pack_dir))).resolve()
         classifier_mode = "deterministic" if os.getenv("DEMO_CLASSIFIER") == "1" else "llm"
-        result = run_close(pack_dir, Path("./output").resolve(), classifier_mode=classifier_mode,
-                           agent_a_port=int(os.getenv("AGENT_A_PORT", "8001")), agent_b_port=int(os.getenv("AGENT_B_PORT", "8002")))
+        result = run_close(
+            pack_dir,
+            Path("./output").resolve(),
+            classifier_mode=classifier_mode,
+            agent_a_port=int(os.getenv("AGENT_A_PORT", "8001")),
+            agent_b_port=int(os.getenv("AGENT_B_PORT", "8002")),
+            clean=clean,
+        )
     except ValueError as error:
         logging.getLogger("gpf_nav_close").error("Close rejected: %s", error)
         return 2

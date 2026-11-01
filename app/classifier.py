@@ -21,7 +21,7 @@ from app.models import Category, Transaction
 
 
 class Classifier(Protocol):
-    def classify(self, transactions: Sequence[Transaction]) -> list[dict]: ...
+    def classify(self, transactions: Sequence[Transaction], workflow_engine: Any = None) -> list[dict]: ...
 
 
 @dataclass(frozen=True)
@@ -161,11 +161,20 @@ class OpenAICompatibleClassifier:
             strict_structured_outputs=_configured_structured_output_mode(os.getenv("LLM_STRUCTURED_OUTPUTS", "auto")),
         )
 
-    def classify(self, transactions: Sequence[Transaction]) -> list[dict]:
+    def classify(self, transactions: Sequence[Transaction], workflow_engine: Any = None) -> list[dict]:
         """Classify in small complete batches, never returning a partial batch."""
         responses: list[dict] = []
-        for batch in self._batch_transactions(transactions):
-            responses.extend(self._classify_batch(batch))
+        for batch_idx, batch in enumerate(self._batch_transactions(transactions)):
+            if workflow_engine is not None:
+                batch_activity_name = f"classify_llm_batch_{batch_idx}"
+                batch_responses = workflow_engine.run_activity(
+                    batch_activity_name,
+                    self._classify_batch,
+                    batch,
+                )
+            else:
+                batch_responses = self._classify_batch(batch)
+            responses.extend(batch_responses)
         return responses
 
     def _batch_transactions(self, transactions: Sequence[Transaction]) -> Iterable[Sequence[Transaction]]:
@@ -262,7 +271,7 @@ class OpenAICompatibleClassifier:
 class DeterministicClassifier:
     """Explicit local demo/test adapter. Do not use this in evaluator mode."""
 
-    def classify(self, transactions: Sequence[Transaction]) -> list[dict]:
+    def classify(self, transactions: Sequence[Transaction], workflow_engine: Any = None) -> list[dict]:
         return [_classify_by_rules(row) for row in transactions]
 
 
@@ -351,9 +360,15 @@ def canonicalize_company(raw_name: str | None, context: ClassificationContext | 
 
 
 def classify_transactions(
-    transactions: Sequence[Transaction], classifier: Classifier, context: ClassificationContext | None = None
+    transactions: Sequence[Transaction],
+    classifier: Classifier,
+    context: ClassificationContext | None = None,
+    workflow_engine: Any = None,
 ) -> list[Transaction]:
-    responses = classifier.classify(transactions)
+    try:
+        responses = classifier.classify(transactions, workflow_engine=workflow_engine)
+    except TypeError:
+        responses = classifier.classify(transactions)
     by_id: dict[str, dict] = {}
     expected = {row.transaction_id for row in transactions}
     for response in responses:
