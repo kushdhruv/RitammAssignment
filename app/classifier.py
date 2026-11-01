@@ -72,6 +72,10 @@ OUTGOING_CATEGORIES = set(Category) - INCOMING_CATEGORIES
 MAX_TRANSACTIONS_PER_REQUEST = 8
 RETRYABLE_HTTP_STATUS = {408, 429, 500, 502, 503, 504}
 MAX_RETRY_DELAY_SECONDS = 60.0
+MONTH_NUMBERS = {
+    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+}
 
 
 class _BatchResponseInvalid(ValueError):
@@ -394,8 +398,11 @@ def _has_prior_period_evidence(description: str, prior_period_end_year: int) -> 
     normalized = description.upper()
     if re.search(r"\bQ[1-3]\b", normalized):
         return True
-    if re.search(r"\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*-\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", normalized):
-        return True
+    month_range = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*-\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", normalized)
+    if month_range:
+        start_month, end_month = (MONTH_NUMBERS[month_range.group(1)], MONTH_NUMBERS[month_range.group(2)])
+        if start_month <= end_month <= 9:
+            return True
     for fiscal_year in re.findall(r"\bFY\s?(\d{2}|\d{4})\b", normalized):
         year = int(fiscal_year)
         if year < 100:

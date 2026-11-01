@@ -225,6 +225,21 @@ class LlmFinancialValidationTests(unittest.TestCase):
         result = classify_transactions([row], NewExpenseClassifier(), context)
         self.assertEqual(result[0].category.value, "expense")
 
+    def test_does_not_treat_a_q4_month_range_from_the_same_vendor_as_a_settlement(self) -> None:
+        row = _row(
+            "txn-0001",
+            description="OUTWARD WIRE HARBOURSIDE FUND SVCS ADMIN SVCS OCT-DEC",
+            debit="1",
+            credit="0",
+        )
+
+        class NewExpenseClassifier:
+            def classify(self, _rows):
+                return [{"transaction_id": row.transaction_id, "category": "expense", "lp_code": None, "company": None}]
+
+        result = classify_transactions([row], NewExpenseClassifier(), self.context)
+        self.assertEqual(result[0].category.value, "expense")
+
     def test_rejects_cumulative_settlements_above_the_approved_opening_liability(self) -> None:
         context = ClassificationContext(
             lp_directory={},

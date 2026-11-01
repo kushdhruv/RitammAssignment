@@ -562,7 +562,7 @@
     "debit": 150.0,
     "credit": 0.0,
     "balance": 23896629.25,
-    "category": "bank_charges",
+    "category": "expense",
     "lp_code": null,
     "company": null,
     "classification_override_reason": null,
