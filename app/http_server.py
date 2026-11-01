@@ -5,11 +5,13 @@ from __future__ import annotations
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 from threading import Thread
 from typing import Any, Callable
 from decimal import Decimal
 
 MAX_REQUEST_BYTES = 1_048_576
+LOGGER = logging.getLogger("gpf_nav_close.http")
 
 
 class LocalAgentServer:
@@ -45,19 +47,30 @@ class LocalAgentServer:
                     self._write(HTTPStatus.OK, {"jsonrpc": "2.0", "id": request_id, "result": result})
                 except (ValueError, KeyError, json.JSONDecodeError) as error:
                     self._write(HTTPStatus.BAD_REQUEST, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": str(error)}})
-                except Exception:
+                except Exception as error:
+                    # Log a traceback for operators, but keep the wire response generic so
+                    # internal details, transaction data, and configuration never leak.
+                    LOGGER.exception(
+                        "Unhandled A2A request failure request_id=%r path=%r error_type=%s",
+                        request_id,
+                        self.path,
+                        type(error).__name__,
+                    )
                     self._write(HTTPStatus.INTERNAL_SERVER_ERROR, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": "internal error"}})
 
-            def log_message(self, _format: str, *_args: Any) -> None:
-                return
+            def log_message(self, format_text: str, *args: Any) -> None:
+                LOGGER.info("A2A HTTP %s", format_text % args)
 
             def _write(self, status: HTTPStatus, body: dict[str, Any]) -> None:
-                encoded = json.dumps(body, default=_json_default).encode("utf-8")
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(encoded)))
-                self.end_headers()
-                self.wfile.write(encoded)
+                try:
+                    encoded = json.dumps(body, default=_json_default).encode("utf-8")
+                    self.send_response(status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(encoded)))
+                    self.end_headers()
+                    self.wfile.write(encoded)
+                except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError) as error:
+                    LOGGER.warning("A2A client disconnected before response delivery: %s", type(error).__name__)
 
         self._server = ThreadingHTTPServer((host, port), RequestHandler)
         self._thread = Thread(target=self._server.serve_forever, daemon=True)

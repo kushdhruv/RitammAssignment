@@ -27,6 +27,8 @@ def run_close(
     agent_b_port: int = 8002,
 ) -> dict[str, str]:
     _verify_pack(pack_dir)
+    if classifier_mode not in {"llm", "deterministic"}:
+        raise ValueError("CLASSIFIER_MODE_INVALID")
     manifest = input_manifest(pack_dir, classifier_mode)
     traces: list[dict[str, Any]] = []
     a2a_log: list[dict[str, Any]] = []
@@ -40,6 +42,14 @@ def run_close(
         pack_dir / "GPF_NAV_Summary_Q3_2022.xlsx",
         pack_dir / "CVP_Valuation_Report_Q3_2022.xlsx",
     )
+    # Validate all static dependencies before exposing either endpoint. This
+    # prevents a missing LLM configuration from becoming a generic server 500.
+    classification_context = valuation_handler.classification_context()
+    classifier = (
+        DeterministicClassifier()
+        if classifier_mode == "deterministic"
+        else OpenAICompatibleClassifier.from_environment(classification_context)
+    )
     b_server = LocalAgentServer("127.0.0.1", agent_b_port, agent_card("Valuation & NAV Agent", "Validates investment activity and releases Q4 marks.", "placeholder"), valuation_handler.handle)
     b_server.card["url"] = f"http://127.0.0.1:{b_server.port}/a2a"
     def execute_agent_a() -> dict[str, str]:
@@ -47,8 +57,7 @@ def run_close(
         trace("bank_statement_extracted", transaction_count=len(extracted))
         bank = reconcile_bank_statement(opening_cash, extracted)
         trace("bank_statement_reconciled", closing_cash=str(bank.closing_cash))
-        classifier = DeterministicClassifier() if classifier_mode == "deterministic" else OpenAICompatibleClassifier.from_environment()
-        transactions = classify_transactions(extracted, classifier)
+        transactions = classify_transactions(extracted, classifier, classification_context)
         trace("transactions_classified", mode=classifier_mode)
         client = A2AClient(b_server.card["url"], lambda direction, payload: a2a_log.append(timestamped_log(direction, payload)))
         marks_artifact = _request_marks(client, transactions)
@@ -73,7 +82,9 @@ def run_close(
     a_server.start()
     trace("agents_started", agent_a_port=a_server.port, agent_b_port=b_server.port)
     try:
-        agent_a_client = A2AClient(a_server.card["url"], lambda _direction, _payload: None)
+        # Agent A performs five bounded provider calls before responding, so its
+        # coordinator request needs a longer timeout than the Agent B exchange.
+        agent_a_client = A2AClient(a_server.card["url"], lambda _direction, _payload: None, timeout_seconds=240)
         completed = agent_a_client.send({"kind": "message", "role": "user", "messageId": str(uuid4()), "parts": [{"kind": "data", "data": {"fund": "GPF", "operation": "run_close"}}]})
         if completed.get("status", {}).get("state") != "completed":
             raise RuntimeError("AGENT_A_EXECUTION_FAILED")

@@ -106,8 +106,32 @@ class LlmFailureHardeningTests(unittest.TestCase):
         error = HTTPError("https://example.invalid/v1/chat/completions", 401, "unauthorized", {}, None)
         with patch("app.classifier.urlopen", side_effect=error) as mocked:
             with self.assertRaisesRegex(RuntimeError, "LLM_CLASSIFICATION_FAILED"):
-                classifier.classify([])
+                classifier.classify([Transaction(
+                    transaction_id="txn-0001", date="2022-10-01", description="wire", debit="0", credit="1", balance="1"
+                )])
         self.assertEqual(mocked.call_count, 1)
+
+    def test_honors_retry_after_for_a_rate_limited_provider_response(self) -> None:
+        from app.classifier import OpenAICompatibleClassifier
+
+        class JsonResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self):
+                return json.dumps({"choices": [{"message": {"content": json.dumps({"classifications": [
+                    {"transaction_id": "txn-0001", "category": "capital_call", "lp_code": "LP01", "company": None}
+                ]})}}]}).encode()
+
+        row = Transaction(transaction_id="txn-0001", date="2022-10-01", description="wire", debit="0", credit="1", balance="1")
+        rate_limited = HTTPError("https://example.invalid/v1/chat/completions", 429, "rate limited", {"Retry-After": "7"}, None)
+        classifier = OpenAICompatibleClassifier("key", "https://example.invalid/v1", "model", attempts=2)
+        with patch("app.classifier.urlopen", side_effect=[rate_limited, JsonResponse()]), patch("app.classifier.time.sleep") as sleep:
+            self.assertEqual(len(classifier.classify([row])), 1)
+        sleep.assert_called_once_with(7.0)
 
 
 class HttpTransportHardeningTests(unittest.TestCase):
@@ -116,10 +140,12 @@ class HttpTransportHardeningTests(unittest.TestCase):
         server.start()
         try:
             request = Request(f"http://127.0.0.1:{server.port}/a2a", data=json.dumps({"jsonrpc": "2.0", "id": "request-1", "method": "message/send", "params": {}}).encode(), method="POST", headers={"Content-Type": "application/json"})
-            with self.assertRaises(HTTPError) as raised:
+            with self.assertLogs("gpf_nav_close.http", level="ERROR") as captured, self.assertRaises(HTTPError) as raised:
                 urlopen(request, timeout=5)
             self.assertEqual(raised.exception.code, 500)
             self.assertEqual(json.loads(raised.exception.read())["error"]["code"], -32603)
+            self.assertIn("request_id='request-1'", "\n".join(captured.output))
+            raised.exception.close()
         finally:
             server.stop()
 

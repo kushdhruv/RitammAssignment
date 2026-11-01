@@ -37,6 +37,7 @@ class Transaction(BaseModel):
     category: Category | None = None
     lp_code: str | None = None
     company: str | None = None
+    classification_override_reason: str | None = None
     source_page: int | None = None
     source_row: int | None = None
 

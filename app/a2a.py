@@ -158,11 +158,22 @@ class ValuationA2AHandler:
         q3 = load_q3_data(self._q3_nav_path, self._q3_valuation_path)
         return calculate_close(q3, transactions, marks_artifact["marks"], eurusd_rate="1.0666", threshold_pct="20")
 
+    def classification_context(self) -> Any:
+        """Share only approved reference identities with Agent A, never Q4 activity or marks."""
+        if self._q3_nav_path is None or self._q3_valuation_path is None:
+            raise RuntimeError("VALUATION_INPUTS_NOT_CONFIGURED")
+        from app.classifier import load_classification_context
+
+        return load_classification_context(self._q3_nav_path, self._q3_valuation_path)
+
 
 class A2AClient:
-    def __init__(self, endpoint: str, log: Callable[[str, dict[str, Any]], None]) -> None:
+    def __init__(self, endpoint: str, log: Callable[[str, dict[str, Any]], None], timeout_seconds: float = 15) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("A2A_TIMEOUT_INVALID")
         self.endpoint = endpoint
         self.log = log
+        self.timeout_seconds = timeout_seconds
 
     def send(self, message: dict[str, Any]) -> dict[str, Any]:
         request_id = str(uuid4())
@@ -170,7 +181,7 @@ class A2AClient:
         self.log("request", rpc)
         request = Request(self.endpoint, data=json.dumps(rpc, default=_json_default).encode("utf-8"), method="POST", headers={"Content-Type": "application/json"})
         try:
-            with urlopen(request, timeout=15) as response:
+            with urlopen(request, timeout=self.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as error:
             try:
@@ -179,6 +190,8 @@ class A2AClient:
                 message_text = payload.get("error", {}).get("message", "HTTP error")
             except (json.JSONDecodeError, UnicodeDecodeError):
                 message_text = "HTTP error"
+            finally:
+                error.close()
             raise RuntimeError(f"A2A_HTTP_ERROR {error.code}: {message_text}") from error
         except (URLError, TimeoutError, json.JSONDecodeError) as error:
             raise RuntimeError(f"A2A_TRANSPORT_FAILED: {type(error).__name__}") from error

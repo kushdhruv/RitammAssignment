@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from app.orchestrator import run_close
 
@@ -35,6 +36,17 @@ class EndToEndTests(unittest.TestCase):
             output = Path(temporary) / "missing-parent" / "output"
             run_close(pack_dir, output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
             self.assertTrue((output / "nav.json").is_file())
+
+    def test_rejects_missing_live_llm_configuration_before_starting_http_servers(self) -> None:
+        root = Path(__file__).parents[1]
+        pack_dir = root.parent / "pack"
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            os.environ,
+            {"LLM_API_KEY": "", "LLM_BASE_URL": "", "LLM_MODEL": ""},
+        ), patch("app.orchestrator.LocalAgentServer") as server:
+            with self.assertRaisesRegex(ValueError, "LLM_CONFIGURATION_MISSING"):
+                run_close(pack_dir, Path(temporary) / "output", classifier_mode="llm", agent_a_port=0, agent_b_port=0)
+        server.assert_not_called()
 
 
 if __name__ == "__main__":
