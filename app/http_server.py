@@ -12,6 +12,7 @@ from decimal import Decimal
 
 MAX_REQUEST_BYTES = 1_048_576
 LOGGER = logging.getLogger("gpf_nav_close.http")
+SAFE_CLIENT_ERROR_PREFIXES = ("A2A_", "AGENT_A_")
 
 
 class LocalAgentServer:
@@ -40,23 +41,36 @@ class LocalAgentServer:
                         self._write(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "request body too large"}})
                         return
                     rpc = json.loads(self.rfile.read(length).decode("utf-8"))
-                    request_id = rpc.get("id") if isinstance(rpc, dict) else None
+                    if not isinstance(rpc, dict):
+                        raise ValueError("unsupported JSON-RPC request")
+                    request_id = rpc.get("id")
                     if rpc.get("jsonrpc") != "2.0" or rpc.get("method") != "message/send":
                         raise ValueError("unsupported JSON-RPC request")
-                    result = outer.handler(rpc.get("params", {}))
-                    self._write(HTTPStatus.OK, {"jsonrpc": "2.0", "id": request_id, "result": result})
                 except (ValueError, KeyError, json.JSONDecodeError) as error:
                     self._write(HTTPStatus.BAD_REQUEST, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": str(error)}})
+                    return
+                try:
+                    result = outer.handler(rpc.get("params", {}))
+                except ValueError as error:
+                    if _is_safe_client_error(error):
+                        self._write(HTTPStatus.BAD_REQUEST, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": str(error)}})
+                    else:
+                        self._write_internal_error(request_id, error)
                 except Exception as error:
-                    # Log a traceback for operators, but keep the wire response generic so
-                    # internal details, transaction data, and configuration never leak.
-                    LOGGER.exception(
-                        "Unhandled A2A request failure request_id=%r path=%r error_type=%s",
-                        request_id,
-                        self.path,
-                        type(error).__name__,
-                    )
-                    self._write(HTTPStatus.INTERNAL_SERVER_ERROR, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": "internal error"}})
+                    self._write_internal_error(request_id, error)
+                else:
+                    self._write(HTTPStatus.OK, {"jsonrpc": "2.0", "id": request_id, "result": result})
+
+            def _write_internal_error(self, request_id: Any, error: Exception) -> None:
+                # Log a traceback for operators, but keep the wire response generic so
+                # internal details, transaction data, and configuration never leak.
+                LOGGER.exception(
+                    "Unhandled A2A request failure request_id=%r path=%r error_type=%s",
+                    request_id,
+                    self.path,
+                    type(error).__name__,
+                )
+                self._write(HTTPStatus.INTERNAL_SERVER_ERROR, {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": "internal error"}})
 
             def log_message(self, format_text: str, *args: Any) -> None:
                 LOGGER.info("A2A HTTP %s", format_text % args)
@@ -94,3 +108,7 @@ def _json_default(value: Any) -> Any:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     raise TypeError(f"Cannot encode {type(value).__name__}")
+
+
+def _is_safe_client_error(error: ValueError) -> bool:
+    return str(error).startswith(SAFE_CLIENT_ERROR_PREFIXES)

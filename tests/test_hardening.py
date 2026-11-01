@@ -149,6 +149,33 @@ class HttpTransportHardeningTests(unittest.TestCase):
         finally:
             server.stop()
 
+    def test_does_not_expose_financial_workflow_errors_to_an_a2a_caller(self) -> None:
+        server = LocalAgentServer(
+            "127.0.0.1",
+            0,
+            {"name": "test"},
+            lambda _params: (_ for _ in ()).throw(ValueError("BANK_RUNNING_BALANCE_MISMATCH txn-0019: expected 120.00")),
+        )
+        server.start()
+        try:
+            request = Request(
+                f"http://127.0.0.1:{server.port}/a2a",
+                data=json.dumps({"jsonrpc": "2.0", "id": "request-2", "method": "message/send", "params": {}}).encode(),
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(request, timeout=5)
+            try:
+                body = json.loads(raised.exception.read())
+                self.assertEqual(raised.exception.code, 500)
+                self.assertEqual(body["error"]["message"], "internal error")
+                self.assertNotIn("txn-0019", json.dumps(body))
+            finally:
+                raised.exception.close()
+        finally:
+            server.stop()
+
     def test_client_surfaces_a_structured_server_error_without_a_transport_traceback(self) -> None:
         server = LocalAgentServer("127.0.0.1", 0, {"name": "test"}, lambda _params: (_ for _ in ()).throw(RuntimeError("boom")))
         server.start()

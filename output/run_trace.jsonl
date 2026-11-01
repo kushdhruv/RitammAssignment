@@ -1,7 +1,7 @@
-{"timestamp": "2026-11-01T10:17:55.973756+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "agents_started", "agent_a_port": 8001, "agent_b_port": 8002}
-{"timestamp": "2026-11-01T10:17:56.309713+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "bank_statement_extracted", "transaction_count": 39}
-{"timestamp": "2026-11-01T10:17:56.309869+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "bank_statement_reconciled", "closing_cash": "23896579.25"}
-{"timestamp": "2026-11-01T10:18:17.429399+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "transactions_classified", "mode": "llm"}
-{"timestamp": "2026-11-01T10:18:17.441240+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "marks_released"}
-{"timestamp": "2026-11-01T10:18:17.531826+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "nav_calculated", "nav_q4": "169764039.25"}
-{"timestamp": "2026-11-01T10:18:17.531862+00:00", "trace_id": "e51e468bf7ca4502980850f72c9c99ab", "event": "outputs_written"}
+{"timestamp": "2026-11-01T10:25:02.190882+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "agents_started", "agent_a_port": 8001, "agent_b_port": 8002}
+{"timestamp": "2026-11-01T10:25:02.513077+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "bank_statement_extracted", "transaction_count": 39}
+{"timestamp": "2026-11-01T10:25:02.513225+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "bank_statement_reconciled", "closing_cash": "23896579.25"}
+{"timestamp": "2026-11-01T10:25:24.264598+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "transactions_classified", "mode": "llm"}
+{"timestamp": "2026-11-01T10:25:24.303043+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "marks_released"}
+{"timestamp": "2026-11-01T10:25:24.332724+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "nav_calculated", "nav_q4": "169764039.25"}
+{"timestamp": "2026-11-01T10:25:24.332733+00:00", "trace_id": "77858549b7f94ea394b65db2e280d004", "event": "outputs_written"}

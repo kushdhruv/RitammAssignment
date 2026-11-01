@@ -32,13 +32,19 @@ class ClassificationContext:
     known_companies: tuple[str, ...]
     prior_period_liability_payees: tuple[str, ...]
     prior_period_liability_amounts: dict[str, Decimal] = field(default_factory=dict)
+    prior_period_liability_descriptions: dict[str, str] = field(default_factory=dict)
+    prior_period_end_year: int | None = None
 
     def __post_init__(self) -> None:
         if self.prior_period_liability_amounts and set(self.prior_period_liability_amounts) != set(self.prior_period_liability_payees):
             raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
+        if self.prior_period_liability_descriptions and set(self.prior_period_liability_descriptions) != set(self.prior_period_liability_payees):
+            raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
         for amount in self.prior_period_liability_amounts.values():
             if not isinstance(amount, Decimal) or not amount.is_finite() or amount <= 0:
                 raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
+        if self.prior_period_end_year is not None and not 2000 <= self.prior_period_end_year <= 9999:
+            raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
 
     @classmethod
     def empty(cls) -> "ClassificationContext":
@@ -180,6 +186,7 @@ def load_classification_context(nav_path: Path, valuation_path: Path) -> Classif
     lp_directory: dict[str, str] = {}
     liability_payees: list[str] = []
     liability_amounts: dict[str, Decimal] = {}
+    liability_descriptions: dict[str, str] = {}
     in_liabilities = False
     in_lp_table = False
     for row in net_assets.iter_rows(values_only=True):
@@ -201,6 +208,7 @@ def load_classification_context(nav_path: Path, valuation_path: Path) -> Classif
                         raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
                     liability_payees.append(payee)
                     liability_amounts[payee] = amount.quantize(Decimal("0.01"))
+                    liability_descriptions[payee] = label.split("(", 1)[0].strip()
         if label == "Investor (LP)":
             in_lp_table = True
             continue
@@ -222,9 +230,18 @@ def load_classification_context(nav_path: Path, valuation_path: Path) -> Classif
                 break
             if isinstance(label, str) and label.strip():
                 companies.append(label.strip())
-    if not lp_directory or not liability_payees or not companies:
+    year_match = re.search(r"\b(20\d{2})\b", net_assets.title)
+    prior_period_end_year = int(year_match.group(1)) if year_match else None
+    if not lp_directory or not liability_payees or not companies or prior_period_end_year is None:
         raise ValueError("CLASSIFICATION_CONTEXT_INVALID")
-    return ClassificationContext(lp_directory, tuple(companies), tuple(liability_payees), liability_amounts)
+    return ClassificationContext(
+        lp_directory,
+        tuple(companies),
+        tuple(liability_payees),
+        liability_amounts,
+        liability_descriptions,
+        prior_period_end_year,
+    )
 
 
 def classify_transactions(
@@ -289,7 +306,7 @@ def _classification_prompt(ledger: list[dict], context: ClassificationContext) -
     lp_lines = "\n".join(f"- {name} -> {code}" for name, code in sorted(context.lp_directory.items())) or "- No approved LP directory supplied"
     company_lines = "\n".join(f"- {company}" for company in sorted(context.known_companies)) or "- No opening company directory supplied"
     liability_lines = "\n".join(
-        f"- {payee} (Q3 opening liability USD {context.prior_period_liability_amounts[payee]:.2f})"
+        f"- {payee} (Q3 liability: {context.prior_period_liability_descriptions.get(payee, 'approved liability')}; opening USD {context.prior_period_liability_amounts[payee]:.2f})"
         if payee in context.prior_period_liability_amounts else f"- {payee}"
         for payee in context.prior_period_liability_payees
     ) or "- No approved prior-period liability payees supplied"
@@ -342,22 +359,50 @@ def _validate_grounded_classification(
         if not _reference_is_in_description(company, row.description):
             raise ValueError(f"LLM_COMPANY_UNGROUNDED: {row.transaction_id}")
     matching_payees = [payee for payee in context.prior_period_liability_payees if _reference_is_in_description(payee, row.description)]
-    matching_prior_liabilities = [
-        payee for payee in matching_payees
-        if payee not in context.prior_period_liability_amounts or row.debit <= context.prior_period_liability_amounts[payee]
-    ]
+    matching_prior_liabilities = [payee for payee in matching_payees if _matches_prior_period_liability(row, payee, context)]
     if matching_prior_liabilities and category != Category.ACCRUAL_SETTLEMENT:
         raise ValueError(f"ACCRUAL_SETTLEMENT_REQUIRED: {row.transaction_id}")
-    if category == Category.ACCRUAL_SETTLEMENT and not matching_payees:
+    if category == Category.ACCRUAL_SETTLEMENT and not matching_prior_liabilities:
         raise ValueError(f"ACCRUAL_SETTLEMENT_UNGROUNDED: {row.transaction_id}")
 
 
 def _is_prior_period_settlement(row: Transaction, context: ClassificationContext) -> bool:
-    return any(
+    return any(_matches_prior_period_liability(row, payee, context) for payee in context.prior_period_liability_amounts)
+
+
+def _matches_prior_period_liability(row: Transaction, payee: str, context: ClassificationContext) -> bool:
+    expected_amount = context.prior_period_liability_amounts.get(payee)
+    liability_description = context.prior_period_liability_descriptions.get(payee)
+    if expected_amount is None or liability_description is None or context.prior_period_end_year is None:
+        return False
+    return (
         _reference_is_in_description(payee, row.description)
         and row.debit <= expected_amount
-        for payee, expected_amount in context.prior_period_liability_amounts.items()
+        and _has_matching_service(liability_description, row.description)
+        and _has_prior_period_evidence(row.description, context.prior_period_end_year)
     )
+
+
+def _has_matching_service(liability_description: str, transaction_description: str) -> bool:
+    ignored = {"ACCRUAL", "PAYABLE", "FEE", "EXPENSE", "LIABILITY", "Q1", "Q2", "Q3", "Q4"}
+    liability_tokens = set(_reference_tokens(liability_description)) - ignored
+    transaction_tokens = set(_reference_tokens(transaction_description))
+    return bool(liability_tokens & transaction_tokens)
+
+
+def _has_prior_period_evidence(description: str, prior_period_end_year: int) -> bool:
+    normalized = description.upper()
+    if re.search(r"\bQ[1-3]\b", normalized):
+        return True
+    if re.search(r"\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*-\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", normalized):
+        return True
+    for fiscal_year in re.findall(r"\bFY\s?(\d{2}|\d{4})\b", normalized):
+        year = int(fiscal_year)
+        if year < 100:
+            year += 2000
+        if year < prior_period_end_year:
+            return True
+    return False
 
 
 def _validate_accrual_settlement_totals(transactions: Sequence[Transaction], context: ClassificationContext) -> None:
@@ -367,7 +412,7 @@ def _validate_accrual_settlement_totals(transactions: Sequence[Transaction], con
     for row in transactions:
         if row.category != Category.ACCRUAL_SETTLEMENT:
             continue
-        payees = [payee for payee in settled if _reference_is_in_description(payee, row.description)]
+        payees = [payee for payee in settled if _matches_prior_period_liability(row, payee, context)]
         if len(payees) != 1:
             raise ValueError(f"ACCRUAL_SETTLEMENT_UNGROUNDED: {row.transaction_id}")
         payee = payees[0]
@@ -396,7 +441,7 @@ def _normalize_reference(value: str) -> str:
 
 def _reference_tokens(value: str) -> list[str]:
     substitutions = {
-        "&": " AND ", "SVCS": " SERVICES ", "SVC": " SERVICE ", "FAM": " FAMILY ",
+        "&": " AND ", "SVCS": " SERVICES ", "SVC": " SERVICE ", "ADMIN": " ADMINISTRATION ", "FAM": " FAMILY ",
         "TRST": " TRUST ", "BRD": " BOARD ", "PB": " PENSION BOARD ", "SOV": " SOVEREIGN ",
         "UNIV": " UNIVERSITY ", "FOF": " FUND OF FUNDS ", "INS": " INSURANCE ",
         "RET": " RETIREMENT ", "ST": " STATE ",

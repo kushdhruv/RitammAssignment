@@ -60,6 +60,11 @@ class LlmTransportTests(unittest.TestCase):
                 "Coral & Finch LLP": Decimal("120000.00"),
                 "Harbourside Fund Services": Decimal("65000.00"),
             },
+            prior_period_liability_descriptions={
+                "Coral & Finch LLP": "Audit fee accrual",
+                "Harbourside Fund Services": "Administration fee payable Q3",
+            },
+            prior_period_end_year=2022,
         )
 
     def test_identifies_the_client_to_provider_and_supplies_grounding_context(self) -> None:
@@ -74,6 +79,9 @@ class LlmTransportTests(unittest.TestCase):
             self.assertEqual(len(classifier.classify([_row("txn-0001")])), 1)
 
         self.assertEqual(captured[0].get_header("User-agent"), "gpf-nav-close/1.0")
+        self.assertEqual(captured[0].get_header("Content-type"), "application/json")
+        self.assertEqual(captured[0].get_header("Accept"), "application/json")
+        self.assertEqual(captured[0].get_header("Authorization"), "Bearer test-key")
         prompt = json.loads(captured[0].data.decode("utf-8"))["messages"][1]["content"]
         self.assertIn("R. Mehta Family Trust -> LP10", prompt)
         self.assertIn("Coral & Finch LLP", prompt)
@@ -125,6 +133,11 @@ class LlmFinancialValidationTests(unittest.TestCase):
                 "Coral & Finch LLP": Decimal("120000.00"),
                 "Harbourside Fund Services": Decimal("65000.00"),
             },
+            prior_period_liability_descriptions={
+                "Coral & Finch LLP": "Audit fee accrual",
+                "Harbourside Fund Services": "Administration fee payable Q3",
+            },
+            prior_period_end_year=2022,
         )
 
     def test_rejects_an_unknown_lp_code_instead_of_accepting_a_plausible_hallucination(self) -> None:
@@ -134,6 +147,21 @@ class LlmFinancialValidationTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "LLM_LP_CODE_UNRECOGNIZED"):
             classify_transactions([_row("txn-0001")], HallucinatingClassifier(), self.context)
+
+    def test_rejects_a_company_that_is_not_evidenced_by_the_transaction_text(self) -> None:
+        row = _row(
+            "txn-0001",
+            description="OUTWARD WIRE FJORD PAYMENTS AS SHARE PURCHASE",
+            debit="100",
+            credit="0",
+        )
+
+        class HallucinatingCompanyClassifier:
+            def classify(self, _rows):
+                return [{"transaction_id": row.transaction_id, "category": "investment_purchase", "lp_code": None, "company": "Imaginary Holdings Ltd"}]
+
+        with self.assertRaisesRegex(ValueError, "LLM_COMPANY_UNGROUNDED"):
+            classify_transactions([row], HallucinatingCompanyClassifier(), self.context)
 
     def test_overrides_a_known_prior_period_liability_payment_to_an_accrual_settlement(self) -> None:
         row = _row(
@@ -157,11 +185,36 @@ class LlmFinancialValidationTests(unittest.TestCase):
             known_companies=(),
             prior_period_liability_payees=("Coral & Finch LLP",),
             prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
+            prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
+            prior_period_end_year=2022,
         )
         row = _row(
             "txn-0001",
             description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT FY22 FINAL",
             debit="130000",
+            credit="0",
+        )
+
+        class NewExpenseClassifier:
+            def classify(self, _rows):
+                return [{"transaction_id": row.transaction_id, "category": "expense", "lp_code": None, "company": None}]
+
+        result = classify_transactions([row], NewExpenseClassifier(), context)
+        self.assertEqual(result[0].category.value, "expense")
+
+    def test_does_not_treat_a_smaller_current_period_invoice_from_the_same_vendor_as_a_settlement(self) -> None:
+        context = ClassificationContext(
+            lp_directory={},
+            known_companies=(),
+            prior_period_liability_payees=("Coral & Finch LLP",),
+            prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
+            prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
+            prior_period_end_year=2022,
+        )
+        row = _row(
+            "txn-0001",
+            description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT FY22 FINAL",
+            debit="1",
             credit="0",
         )
 
@@ -178,10 +231,12 @@ class LlmFinancialValidationTests(unittest.TestCase):
             known_companies=(),
             prior_period_liability_payees=("Coral & Finch LLP",),
             prior_period_liability_amounts={"Coral & Finch LLP": Decimal("120000.00")},
+            prior_period_liability_descriptions={"Coral & Finch LLP": "Audit fee accrual"},
+            prior_period_end_year=2022,
         )
         rows = [
-            _row("txn-0001", description="OUTWARD WIRE CORAL AND FINCH LLP PARTIAL SETTLEMENT", debit="70000", credit="0"),
-            _row("txn-0002", description="OUTWARD WIRE CORAL AND FINCH LLP PARTIAL SETTLEMENT", debit="70000", credit="0"),
+            _row("txn-0001", description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT FY21 PARTIAL SETTLEMENT", debit="70000", credit="0"),
+            _row("txn-0002", description="OUTWARD WIRE CORAL AND FINCH LLP AUDIT FY21 PARTIAL SETTLEMENT", debit="70000", credit="0"),
         ]
 
         class OverpayingSettlementClassifier:
