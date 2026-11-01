@@ -1,19 +1,29 @@
 # Assumptions
 
-## Assumption 1: EUR/USD valuation-date rate
+## Assumption 1: EUR/USD valuation-date exchange rate & timing
+- **What I assumed:** The valuation date of 31 December 2022 fell on a Saturday. I used the European Central Bank's (ECB) last published euro reference rate immediately preceding the valuation date: Friday, 30 December 2022, where EUR 1.00 = USD 1.0666.
+- **Why:** The ECB does not publish reference fixings on Saturdays, Sundays, or TARGET2 bank holidays. CVP established in Q3 that it converts local European marks into the fund's USD reporting currency using official daily ECB reference rates. Using the immediately preceding business day's fixing (Friday, 30 Dec 2022) is standard practice under International Private Equity and Venture Capital (IPEV) Valuation Guidelines (Section 3.8) and ensures exact reproducibility. CVP cost in USD is held constant at historical cost (USD 12.0M) and not re-converted. Official source: [ECB Euro foreign exchange reference rates, 30 December 2022](https://www.ecb.europa.eu/stats/exchange/eurofxref/shared/pdf/2022/12/20221230.pdf).
+- **What would change if wrong:** Ember Retail GmbH has an approved Q4 mark of EUR 13,100,000.00. At 1.0666, its USD fair value is exactly USD 13,972,460.00. If a weekend interpolation, Monday 2 Jan rate, or alternative rate (e.g., Bloomberg 1.0705) were used, Ember Retail's USD fair value, total fund investments, Q4 unrealized gain, and Q4 NAV would change dollar-for-dollar by EUR 13,100,000.00 multiplied by the exchange rate differential.
 
-- **What I assumed:** I used the ECB's last published reference rate before the Saturday 31 December 2022 valuation date: 30 December 2022, EUR 1 = USD 1.0666.
-- **Why:** The ECB does not publish a reference rate on the Saturday valuation date. CVP used ECB reference rates in Q3, so the immediately preceding business day's rate is consistent and reproducible. Source: [ECB reference rates, 30 December 2022](https://www.ecb.europa.eu/stats/exchange/eurofxref/shared/pdf/2022/12/20221230.pdf).
-- **What would change if wrong:** Ember Retail GmbH's USD fair value, investment value, unrealized-gain change, and NAV would change by EUR 13,100,000 multiplied by the FX-rate difference.
+## Assumption 2: Materiality threshold and currency denomination
+- **What I assumed:** A quarterly materiality threshold of 20.00% assessed strictly in the portfolio company's local reporting currency (EUR for Ember Retail GmbH, USD for all other portfolio companies).
+- **Why:** The brief recommends a quarterly monitoring band between 10.00% and 25.00%. A 20.00% threshold represents an industry-standard midpoint that captures significant performance deviations while filtering out routine quarterly operating volatility. Crucially, evaluating materiality in local reporting currency isolates company operating performance from foreign exchange fluctuations. For example, Ember Retail's local mark decreased from EUR 14,200,000.00 to EUR 13,100,000.00 (-7.75%), which is normal operating variance; measuring in USD would conflate operational performance with EUR/USD exchange rate volatility.
+- **What would change if wrong:** The materiality threshold does not change fund NAV, closing cash, or the NAV bridge. However, it dictates the governance review population in `review.json`:
+  - At 20.00%: Flags Bluetarn Software Inc (+37.50%) and Cedar Health Holdings (-31.91%). (Delta Agritech Ltd is flagged under R2 for a valuation methodology change from Recent Transaction to Market Multiples).
+  - If lowered below 17.83%: Harbor Analytics (+17.83%) would also be flagged.
+  - If raised above 32.00%: Only Bluetarn Software (+37.50%) would be flagged under R1.
 
-## Assumption 2: Materiality threshold
+## Assumption 3: Unmarked recent investment carried at cost
+- **What I assumed:** Ionmere Materials Ltd, acquired on 15 December 2022 for USD 14,000,000.00, is carried at its transaction purchase cost of USD 14,000,000.00 at 31 December 2022, with zero unrealized gain/loss recognized for Q4.
+- **Why:** CVP's valuation notes explicitly record that Ionmere was acquired late in Q4 (15 December 2022) and will undergo its initial formal valuation in Q1 2023. Under IPEV Guidelines (Section 3.3 "Price of a Recent Investment") and US GAAP (ASC 820), where an investment transaction occurs close to the reporting date, transaction price represents the most reliable indicator of fair value in the absence of significant market or operational developments. Leaving it out of the NAV would understate fund assets and violate accrual accounting principles.
+- **What would change if wrong:** If Ionmere were excluded, closing investments and Q4 NAV would be understated by USD 14,000,000.00, and the NAV bridge walk would fail to reconcile by USD 14,000,000.00. If an interim mark had been assigned (e.g., USD 14,500,000.00), closing investments and Q4 NAV would shift by the difference (+USD 500,000.00), flowing through change in unrealized gain.
 
-- **What I assumed:** A local-currency fair-value change of 20.00% or more is material.
-- **Why:** The brief suggests a 10–25% quarterly range. 20% is a defensible midpoint, and assessing local currency excludes FX movement from company-performance flags.
-- **What would change if wrong:** The NAV does not change. The R1 review population may change; for example, Harbor Analytics' 17.83% increase would be flagged under a lower threshold.
+## Assumption 4: Prior-period accrued liabilities vs. current-period operating expenses
+- **What I assumed:** The payments to Coral & Finch LLP (USD 120,000.00 on 14 Oct 2022 for FY21 Audit) and Harbourside Fund Services (USD 65,000.00 on 15 Oct 2022 for Q3 Administration) settle balance-sheet liabilities accrued at 30 September 2022 (`accrual_settlement`), rather than Q4 operating expenses. The vendor refund from Haldane & Ross LLP (USD 4,500.00) is treated as an `expense_refund` that nets against fund operating expenses.
+- **Why:** In fund accounting, payments for services accrued in prior periods extinguish the balance-sheet liability; charging them as current-period expenses would double-count the expense against NAV (once when accrued in Q3, and again when paid in Q4). Per Section 7 of the brief: *"Not an expense: a payment in Q4 that settles a liability already recorded at 30 September... It reduces cash and the liability by the same amount, so the NAV does not change."*
+- **What would change if wrong:** If classified as expenses, Q4 fund expenses would increase from USD 1,522,850.00 to USD 1,707,850.00, and the NAV bridge walk would fail by exactly USD 185,000.00.
 
-## Assumption 3: Unmarked recent investment
-
-- **What I assumed:** Ionmere Materials Ltd is carried at its 15 December purchase cost of USD 14,000,000 until its first valuation.
-- **Why:** CVP notes that it was acquired in Q4 and will receive its first mark in Q1 2023. Carrying a recent acquisition at cost is the policy suggested by the brief.
-- **What would change if wrong:** Closing investments, unrealized gain, and NAV would change by the difference between an approved Q4 mark and USD 14,000,000.
+## Assumption 5: Monetary precision and cent-exact reconciliation policy
+- **What I assumed:** All financial arithmetic is performed using arbitrary-precision fixed-point numbers (`Decimal`) with exact two-decimal precision (`0.01`) and `ROUND_HALF_UP` rounding. Floating-point IEEE-754 arithmetic is strictly prohibited throughout the accounting engine.
+- **Why:** Private equity accounting mandates cent-exact precision down to USD 0.01. Floating-point arithmetic introduces binary representation drift (e.g., `0.1 + 0.2 = 0.30000000000000004`), which creates phantom imbalances. The system enforces a fail-closed policy where any bank balance discrepancy or non-zero NAV bridge difference stops publication immediately.
+- **What would change if wrong:** Floating-point approximations could cause 1-cent reconciliation errors, leading to improper rejection of valid fund closes or silent propagation of un-auditable balancing plug numbers.

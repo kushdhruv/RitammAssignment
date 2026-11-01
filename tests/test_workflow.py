@@ -155,3 +155,4 @@ def test_workflow_pydantic_serialization(tmp_path: Path):
         assert len(rehydrated) == 1
         assert rehydrated[0].transaction_id == "txn-001"
         assert rehydrated[0].category == Category.CAPITAL_CALL
+
