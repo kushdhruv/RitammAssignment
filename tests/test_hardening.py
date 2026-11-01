@@ -19,7 +19,7 @@ from app.valuation import calculate_close, load_q3_data
 
 class A2AInputHardeningTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.handler = ValuationA2AHandler(Path(__file__).parents[1] / "pack" / "agent_b_data.json")
+        self.handler = ValuationA2AHandler(Path(__file__).parents[2] / "pack" / "agent_b_data.json")
         self.first = self.handler.handle({"message": {"kind": "message", "role": "user", "messageId": "m1", "parts": [
             {"kind": "data", "data": {"fund": "GPF", "valuation_date": "2022-12-31"}}
         ]}})
@@ -54,7 +54,7 @@ class A2AInputHardeningTests(unittest.TestCase):
 
 class ValuationInputHardeningTests(unittest.TestCase):
     def setUp(self) -> None:
-        root = Path(__file__).parents[1] / "pack"
+        root = Path(__file__).parents[2] / "pack"
         _, extracted = parse_bank_statement(root / "GPF_Bank_Statement_Q4_2022.pdf")
         self.transactions = classify_transactions(extracted, DeterministicClassifier())
         self.q3 = load_q3_data(root / "GPF_NAV_Summary_Q3_2022.xlsx", root / "CVP_Valuation_Report_Q3_2022.xlsx")

@@ -10,9 +10,10 @@ from app.orchestrator import run_close
 class EndToEndTests(unittest.TestCase):
     def test_runs_a_complete_local_close_and_writes_required_outputs(self) -> None:
         root = Path(__file__).parents[1]
+        pack_dir = root.parent / "pack"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
-            result = run_close(root / "pack", output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
+            result = run_close(pack_dir, output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
             self.assertEqual(result["nav_q4"], "169764039.25")
             required = {"transactions.json", "a2a_log.jsonl", "marks.json", "review.json", "nav.json"}
             self.assertTrue(required <= {path.name for path in output.iterdir()})
@@ -29,9 +30,10 @@ class EndToEndTests(unittest.TestCase):
 
     def test_creates_a_missing_output_parent(self) -> None:
         root = Path(__file__).parents[1]
+        pack_dir = root.parent / "pack"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "missing-parent" / "output"
-            run_close(root / "pack", output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
+            run_close(pack_dir, output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
             self.assertTrue((output / "nav.json").is_file())
 
 

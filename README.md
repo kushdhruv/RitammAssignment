@@ -7,8 +7,10 @@ This repository closes Q4 2022 for The Greatness PE Fund, L.P. It runs two local
 Open this folder in your editor or terminal: `C:\Ritamm\gpf-nav-close`. Use Python 3.11 or newer. Install the dependencies, copy `.env.example` to `.env`, fill the three LLM variables, then run:
 
 ```bash
-python main.py ./pack
+python main.py
 ```
+
+The assignment pack is intentionally kept outside this project at `C:\Ritamm\pack`. To provide another pack, run `python main.py <pack-directory>`. The submission ZIP contains a sibling `pack/` folder, so the same command also works after extraction.
 
 The evaluator's `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` take precedence over `.env`. `AGENT_A_PORT` and `AGENT_B_PORT` default to 8001 and 8002. The command creates `output/` and stops both local services when the close completes.
 
