@@ -42,6 +42,17 @@ class A2ATests(unittest.TestCase):
         self.assertEqual(retry["id"], first["id"])
         self.assertEqual(retry["contextId"], first["contextId"])
 
+    def test_reused_message_id_with_different_payload_is_rejected(self) -> None:
+        first = {"message": {"kind": "message", "role": "user", "messageId": "reused-id", "parts": [
+            {"kind": "data", "data": {"fund": "GPF", "valuation_date": "2022-12-31"}}
+        ]}}
+        conflicting = {"message": {"kind": "message", "role": "user", "messageId": "reused-id", "parts": [
+            {"kind": "data", "data": {"fund": "GPF", "valuation_date": "2022-12-30"}}
+        ]}}
+        self.handler.handle(first)
+        with self.assertRaisesRegex(ValueError, "A2A_MESSAGE_ID_CONFLICT"):
+            self.handler.handle(conflicting)
+
 
 if __name__ == "__main__":
     unittest.main()

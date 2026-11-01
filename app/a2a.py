@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import hashlib
 from pathlib import Path
 from threading import RLock
 from typing import Any, Callable
@@ -68,6 +69,12 @@ class _TaskContext:
     context_id: str
 
 
+@dataclass(frozen=True)
+class _CachedResponse:
+    message_digest: str
+    response: dict[str, Any]
+
+
 class ValuationA2AHandler:
     """Agent B's A2A gate. It releases private marks only after activity validation."""
 
@@ -76,7 +83,7 @@ class ValuationA2AHandler:
         self._q3_nav_path = q3_nav_path
         self._q3_valuation_path = q3_valuation_path
         self._tasks: dict[str, _TaskContext] = {}
-        self._responses_by_message_id: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._responses_by_message_id: OrderedDict[str, _CachedResponse] = OrderedDict()
         self._lock = RLock()
 
     def handle(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -86,13 +93,18 @@ class ValuationA2AHandler:
         message_id = message.get("messageId")
         if not isinstance(message_id, str) or not message_id.strip():
             raise ValueError("A2A_MESSAGE_ID_MISSING")
+        message_digest = hashlib.sha256(
+            json.dumps(message, sort_keys=True, separators=(",", ":"), default=_json_default).encode("utf-8")
+        ).hexdigest()
         with self._lock:
             cached = self._responses_by_message_id.get(message_id)
             if cached is not None:
+                if cached.message_digest != message_digest:
+                    raise ValueError("A2A_MESSAGE_ID_CONFLICT")
                 self._responses_by_message_id.move_to_end(message_id)
-                return deepcopy(cached)
+                return deepcopy(cached.response)
             response = self._continue_task(message) if message.get("taskId") else self._start_task(message)
-            self._responses_by_message_id[message_id] = deepcopy(response)
+            self._responses_by_message_id[message_id] = _CachedResponse(message_digest, deepcopy(response))
             if len(self._responses_by_message_id) > 1_024:
                 self._responses_by_message_id.popitem(last=False)
             return response

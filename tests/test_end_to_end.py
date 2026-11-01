@@ -27,6 +27,13 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(nav["management_fee"], 1250000.0)
             self.assertEqual(len((output / "a2a_log.jsonl").read_text().splitlines()), 4)
 
+    def test_creates_a_missing_output_parent(self) -> None:
+        root = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "missing-parent" / "output"
+            run_close(root / "pack", output, classifier_mode="deterministic", agent_a_port=0, agent_b_port=0)
+            self.assertTrue((output / "nav.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

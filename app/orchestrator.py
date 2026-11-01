@@ -56,6 +56,7 @@ def run_close(
         close = valuation_handler.calculate_close(transactions, marks_artifact)
         trace("nav_calculated", nav_q4=str(close.nav["nav_q4"]))
         trace("outputs_written")
+        output_dir.parent.mkdir(parents=True, exist_ok=True)
         staging_directory = Path(tempfile.mkdtemp(prefix=".close-output-", dir=output_dir.parent))
         try:
             _write_outputs(staging_directory, transactions, a2a_log, marks_artifact, close, traces, manifest)
