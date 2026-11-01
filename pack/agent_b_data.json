@@ -1,0 +1,82 @@
+{
+  "fund": {
+    "name": "The Greatness PE Fund, L.P.",
+    "code": "GPF"
+  },
+  "valuation_date": "2022-12-31",
+  "marks": [
+    {
+      "company": "Aurora Logistics Pvt Ltd",
+      "currency": "USD",
+      "fair_value": "25700000",
+      "valuation_method": "Market multiples",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Bluetarn Software Inc",
+      "currency": "USD",
+      "fair_value": "42900000",
+      "valuation_method": "Discounted cash flow",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Cedar Health Holdings",
+      "currency": "USD",
+      "fair_value": "9600000",
+      "valuation_method": "Market multiples",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Delta Agritech Ltd",
+      "currency": "USD",
+      "fair_value": "12150000",
+      "valuation_method": "Market multiples",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Ember Retail GmbH",
+      "currency": "EUR",
+      "fair_value": "13100000",
+      "valuation_method": "Market multiples",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Granite Energy Corp",
+      "currency": "USD",
+      "fair_value": "16900000",
+      "valuation_method": "Market multiples",
+      "valuation_date": "2022-12-31"
+    },
+    {
+      "company": "Harbor Analytics Inc",
+      "currency": "USD",
+      "fair_value": "10840000",
+      "valuation_method": "Recent transaction",
+      "valuation_date": "2022-12-31"
+    }
+  ],
+  "notes": [
+    {
+      "company": "Ionmere Materials Ltd",
+      "note": "Acquired by the fund on 15 Dec 2022. Not yet valued; first valuation will be at Q1 2023."
+    },
+    {
+      "company": "Fjord Payments AS",
+      "note": "Sold by the fund on 18 Nov 2022. Removed from coverage."
+    }
+  ],
+  "purchases": [
+    {
+      "company": "Ionmere Materials Ltd",
+      "date": "2022-12-15",
+      "amount_usd": "14000000"
+    }
+  ],
+  "sales": [
+    {
+      "company": "Fjord Payments AS",
+      "date": "2022-11-18",
+      "proceeds_usd": "29000000"
+    }
+  ]
+}

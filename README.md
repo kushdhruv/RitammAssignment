@@ -1,0 +1,47 @@
+# GPF Q4 2022 Close
+
+This repository closes Q4 2022 for The Greatness PE Fund, L.P. It runs two local agents over A2A 0.3 JSON-RPC: a Bank & Ingestion Agent extracts, classifies and reconciles bank activity, and a Valuation & NAV Agent validates investment activity before releasing Q4 marks and calculating the fund close.
+
+## Run
+
+Open this folder in your editor or terminal: `C:\Ritamm\gpf-nav-close`. Use Python 3.11 or newer. Install the dependencies, copy `.env.example` to `.env`, fill the three LLM variables, then run:
+
+```bash
+python main.py ./pack
+```
+
+The evaluator's `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` take precedence over `.env`. `AGENT_A_PORT` and `AGENT_B_PORT` default to 8001 and 8002. The command creates `output/` and stops both local services when the close completes.
+
+`DEMO_CLASSIFIER=1` enables a deterministic local adapter solely to make offline tests and the included sample output reproducible. It is not the normal or evaluator mode; without that setting, every extracted transaction is sent to the configured OpenAI-compatible LLM for classification.
+
+The committed `output/` was generated with `DEMO_CLASSIFIER=1` because this workspace has no LLM credential. Before submitting, run the normal command once with valid evaluator-compatible LLM settings and confirm that the regenerated output still reconciles.
+
+## Architecture
+
+`main.py` loads configuration and invokes `app.orchestrator.run_close`. The Bank Agent parses the statement with position-aware PDF extraction, verifies every running balance, calls the LLM, and validates category, LP/company identity, and cash direction. It then proves purchases and sales through Agent B's A2A endpoint.
+
+Agent B owns `agent_b_data.json`, Q3 inputs and all valuation/NAV work. It returns `input-required` until a multiset comparison confirms purchase/sale company, date and amount. It calculates holdings from Q3 positions plus transactions, reviews Q4 marks, and produces direct NAV and a NAV bridge. All financial arithmetic uses `Decimal` and the close stops if the bridge differs by any amount.
+
+The implementation follows the A2A 0.3 compatibility requirement in the brief. It deliberately uses structured JSONL trace records instead of requiring a remote observability service: `output/a2a_log.jsonl` captures protocol messages and `output/run_trace.jsonl` captures correlated workflow milestones without exposing credentials.
+
+The two required marks-exchange messages travel over HTTP. After that exchange, this single-process exercise invokes Agent B's valuation service directly with Agent A's classified ledger so the brief remains a two-turn conversation. This is a documented local coordinator contract, not a remotely enforced cross-process boundary. A production deployment would persist authenticated task state and expose a dedicated, authorized Agent B ledger-ingestion contract.
+
+## Tests
+
+Tests run offline and use deterministic fixtures:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+They cover PDF extraction, one-cent reconciliation failures, classification validation, the A2A activity gate, accounting treatment, and a complete local HTTP workflow. The normal command should also be smoke-tested with a valid LLM configuration before submission.
+
+`tests/test_hardening.py` adds malformed/non-finite input, duplicate-mark, provider-error, concurrent-task, request-size, structured-error, and deterministic randomized reconciliation coverage. The test suite does not claim live-provider model accuracy: no LLM credential is available in this workspace.
+
+## Output
+
+The run writes `transactions.json`, `a2a_log.jsonl`, `marks.json`, `review.json`, `nav.json`, `run_trace.jsonl`, and `run_manifest.json`. The manifest records SHA-256 hashes of each input to bind generated results to an exact pack. Extra source-provenance fields in `transactions.json` support auditability. `marks.json` is the artifact received through A2A without modification.
+
+## Product next steps
+
+For a production multi-fund platform, add authenticated service-to-service transport, durable task storage and idempotency keys, encrypted document/object storage, a reviewed chart-of-accounts mapping, human exception queues, immutable audit retention, and an OpenTelemetry exporter wired to the organization's chosen trace backend. Those systems require operational choices not specified in this exercise.

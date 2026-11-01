@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "classifier_mode": "deterministic",
+  "input_sha256": {
+    "GPF_Bank_Statement_Q4_2022.pdf": "6ef3c28ad9ead421e044d3b651fc37f89e62fde2ec7db592bf5ff956a6d21ead",
+    "GPF_NAV_Summary_Q3_2022.xlsx": "728ef8350c7fa9df8c86f331b0713e37cd5d858d1230ad853ae470abd09e5369",
+    "CVP_Valuation_Report_Q3_2022.xlsx": "807c546aa9da58ba90efb817b0b563d162b940b833e965ae68b6fbe39bb0f013",
+    "agent_b_data.json": "d92eebbdf7d90e435c71bbc0bac7711bd05a2ae2ff84432d9d1dc44a47d1bc31"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "threshold_pct": 20,
+  "eurusd_rate": 1.0666,
+  "reviews": [
+    {
+      "company": "Aurora Logistics Pvt Ltd",
+      "currency": "USD",
+      "q3_fair_value": 24600000.0,
+      "q4_fair_value": 25700000.0,
+      "change_pct": 4.47,
+      "q3_method": "Market multiples",
+      "q4_method": "Market multiples",
+      "flags": [],
+      "reason": "No review flags."
+    },
+    {
+      "company": "Bluetarn Software Inc",
+      "currency": "USD",
+      "q3_fair_value": 31200000.0,
+      "q4_fair_value": 42900000.0,
+      "change_pct": 37.5,
+      "q3_method": "Discounted cash flow",
+      "q4_method": "Discounted cash flow",
+      "flags": [
+        "R1"
+      ],
+      "reason": "Local-currency fair value changed 37.50% against a 20.00% threshold."
+    },
+    {
+      "company": "Cedar Health Holdings",
+      "currency": "USD",
+      "q3_fair_value": 14100000.0,
+      "q4_fair_value": 9600000.0,
+      "change_pct": -31.91,
+      "q3_method": "Market multiples",
+      "q4_method": "Market multiples",
+      "flags": [
+        "R1"
+      ],
+      "reason": "Local-currency fair value changed -31.91% against a 20.00% threshold."
+    },
+    {
+      "company": "Delta Agritech Ltd",
+      "currency": "USD",
+      "q3_fair_value": 11800000.0,
+      "q4_fair_value": 12150000.0,
+      "change_pct": 2.97,
+      "q3_method": "Recent transaction",
+      "q4_method": "Market multiples",
+      "flags": [
+        "R2"
+      ],
+      "reason": "Valuation method changed from Q3."
+    },
+    {
+      "company": "Ember Retail GmbH",
+      "currency": "EUR",
+      "q3_fair_value": 13500000.0,
+      "q4_fair_value": 13100000.0,
+      "change_pct": -2.96,
+      "q3_method": "Market multiples",
+      "q4_method": "Market multiples",
+      "flags": [],
+      "reason": "No review flags."
+    },
+    {
+      "company": "Granite Energy Corp",
+      "currency": "USD",
+      "q3_fair_value": 16400000.0,
+      "q4_fair_value": 16900000.0,
+      "change_pct": 3.05,
+      "q3_method": "Market multiples",
+      "q4_method": "Market multiples",
+      "flags": [],
+      "reason": "No review flags."
+    },
+    {
+      "company": "Harbor Analytics Inc",
+      "currency": "USD",
+      "q3_fair_value": 9200000.0,
+      "q4_fair_value": 10840000.0,
+      "change_pct": 17.83,
+      "q3_method": "Recent transaction",
+      "q4_method": "Recent transaction",
+      "flags": [],
+      "reason": "No review flags."
+    },
+    {
+      "company": "Ionmere Materials Ltd",
+      "currency": "USD",
+      "q3_fair_value": null,
+      "q4_fair_value": 14000000.0,
+      "change_pct": null,
+      "q3_method": null,
+      "q4_method": null,
+      "flags": [
+        "R3"
+      ],
+      "reason": "No Q4 mark; carried at recent Q4 purchase cost."
+    }
+  ]
+}

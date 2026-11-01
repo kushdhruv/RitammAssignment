@@ -1,0 +1,7 @@
+{"timestamp": "2026-11-01T07:41:33.943853+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "agents_started", "agent_a_port": 8001, "agent_b_port": 8002}
+{"timestamp": "2026-11-01T07:41:34.340087+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "bank_statement_extracted", "transaction_count": 39}
+{"timestamp": "2026-11-01T07:41:34.340087+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "bank_statement_reconciled", "closing_cash": "23896579.25"}
+{"timestamp": "2026-11-01T07:41:34.341092+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "transactions_classified", "mode": "deterministic"}
+{"timestamp": "2026-11-01T07:41:34.369395+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "marks_released"}
+{"timestamp": "2026-11-01T07:41:34.833718+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "nav_calculated", "nav_q4": "169764039.25"}
+{"timestamp": "2026-11-01T07:41:34.833718+00:00", "trace_id": "7df0aa2bf9194bffa701732a5b1a7bfb", "event": "outputs_written"}
